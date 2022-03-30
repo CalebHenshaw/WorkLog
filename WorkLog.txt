@@ -1,4 +1,2308 @@
 .LOG
+
+10:09 AM 3/8/2021
+Initial creation of Log file.
+
+10:11 AM 3/8/2021
+Powershell function "log" added to open this log file.
+
+12:46 PM 3/8/2021
+Currently working on the alert monitor that searches for exceptions recorded in Cosmos DB. 
+Starting with just the azure functions, certain thresholds will need to be set that when passed alerts will be sent via email. 
+To start the threshold for each function will be set to 5 exceptions per day. If passed an email will be sent to the ECS Development mailbox. 
+
+3:42 PM 3/8/2021
+The main method of alert monitor will record how many exceptions were found in the current day. 
+A list of azure function names will need to be created to use in filtering the counts of exceptions by function. 
+It will most likely be easier working with an object instead of a dynamic that is curretly being returned. 
+What information am I going to want to see when an alert is generated?
+	Function name, method, message, exception, stack trace.
+What happens if multiple different exceptions are happeing from different methods?
+	For now the count will be function specific and if the count is over 5 the alert will trigger.
+What happens if the email fails to send?
+	Alert data will be recorded separately to cosmos as a fatal event. 
+	Could be possible to have a separate function monitoring cosmos directly for fatal events
+
+6:31 AM 3/9/2021
+Start by creating a list of log objects from the returned dynamic object that contains the logs.
+
+7:31 AM 3/9/2021
+Create the alert objects from the log objects, then check if the threshold is met.
+Build email and send to ECS mailbox if met. 
+
+11:23 AM 3/9/2021
+Email logic used from SecDevLib2 and still need to create the email template. 
+Dynamic log objects are converted to LogObjects and put in a list.
+LogObjects are then parsed to AlertObjects and put in a list.
+Check threshold, if passed continue
+Email template is defined from AlertObjectList.
+Alert Email is defined from email template and sent.
+
+9:08 AM 3/10/2021
+There were some difficulties in running the local Azure emulator which were resolved by deleting the local config db.
+To prevent the need for the schedule delay, the code was copied to a console app to test the code faster.  
+All logic is there and a basic template generator was created that will need to be updated for more viewable data. 
+
+1:13 PM 3/10/2021
+Function app is now sending emails to the ECS Development mailbox as designed. All methods have been updated with logging and the function app is ready to deploy.
+
+1:26 PM 3/10/2021
+Adding the list of RHL projects to arc will require a check in the candidate lookup method to use the project name to query against the dynamic alert lists.
+
+2:10 PM 3/10/2021
+The project name is now being queried agaisnt the dynamic alert list. The new list was added as a dynamic alert and confirmed to be showing in the alerts box when a candidate is looked up. A new ServiceNowIncident property will need to be added, it will be a bool IsRhlProjectCandidate that will be checked when creating a SNow incident. If true a string will be added to the long description notifying that the customer is a rhl project candidate. 
+
+4:53 PM 3/10/2021
+Candidates that are looked up will have their project name checked against the alert list, then if matched will alert that the candidate is a RHL Project candidate. When the incident is sent to servicenow and the RHL project alert is present, the long description text will be updated on the first line with "Candidate Is On RHL Project". 
+
+9:50 AM 3/11/2021
+AlertMonitorAzFunc funciton app was created in azure then the local solution was deployed. Updated the README.me and all changes were pushed to Gitlab. All app settings were added to the new azure function and saved. 
+
+9:51 AM 3/11/2021
+An old version of arc was foud to be running on kweark01's computer and an email was sent to him letting him know he needs to reinstall arc. Waiting on his response now before closing out the planner task.
+
+11:26 AM 3/11/2021
+The RHL Project candidate alert in ARC will show "Candidate On RHL Project"
+The following line will be added to the top of the long description and in work notes: Candidate Is On RHL Project
+
+12:18 PM 3/11/2021
+Ramon wants to see the emails coming with the RHL project list being automatically parsed and read into the dynamic alert list storage so that they do not have to be manually updated each time. 
+There will need to be a listener set up on the ECS Mailbox that can read the email and parse the attachment. Once parsed the data will need to be added to the block containing the dynamic alert list blobs. 
+
+12:40 PM 3/11/2021
+Work log notes were copied to the planner card for the AlertmonitorAzFunc
+
+12:43 PM 3/11/2021
+Work log notes were copied to the planner card for the RHL Project Candidate Alert
+Followed up with Joe Cid to let him know that the groups that we added to the svc account did not authorize the enabling of disabled computers. 
+Russell got back letting me know that he will be setting up a time to get together to review and approve the repair sccm powershell script. I followed up with Rudy to see if he had documentation on where get got the flags to reinstall sccm, but he said he got them from Nick A. 
+
+12:50 PM 3/11/2021
+The permission issues were resolved in service now and the required table can now be accessed, now the next problem is to figure out the work flow and have merge request approvals worked out so that the scripts that I add can be viewable from the service now request. 
+
+9:26 AM 3/12/2021
+svcARC has access to the ECS Development mailbox. 
+svcARC will need to read the mailbox and search for emails that have a specific subject. When the email is found the attachment will have to be read and parsed into an alert object to be uploaded to blob in the dynamic alerts container. Evan will have to be notified to keep the format of the email the same and the structure of the excel file the same. 
+
+9:39 AM 3/12/2021
+A new azure function will have to be created to run on a schedule. The function will need to create the connection to the ECS Development mailbox using the svcARC account, read items in the mailbox, search each item, if rhl project list email found return, injest the attachment, parse into dynamic alert object, create blob file string, find and remove old rhl project blob and create new from new data. 
+
+11:43 AM 3/12/2021
+Azure functions can only run .net core, and the websevices exchange library only works with .net framework. 
+In order for this function app to work it will need to be authenticated with the Identity platform. 
+
+4:05 PM 3/12/2021
+Using the Ews library from SecDevV2 library, the shared mailbox was accessed and all emails were read using the svcARC account. 
+With the list of emails returned, the sender will be used to find the specific email, then the excel attachment will have to be parsed, the used to create a dynamic alert object, then that object will be uploaded to blob. The older blob will then have to be removed. 
+
+2:22 PM 3/15/2021
+The mailbox monitor automation logic has been written.
+The mailbox is connected to, inbox emails are checked for a specific sender.
+When found the email is checked for an attachment with a specific name. When found the file is assumed to be an excel file and read with ExcelDataReader. The values are parsed to a list and used to create a string that is sent to blob. The file being sent to blob is used as the Dynamic alert that is checked by arc. The old dynamic alert is deleted and the email is moved to an inbox subfolder called AutomatedEmails. 
+Logging will have to be added to all methods, local info needs to be defined, logic needs to be moved to an azure function, finally the delete logic will need to be updated to only delete the old dynamic alert. Most likely it will need to be deleted first unless the name includes the date. 
+
+8:53 AM 3/17/2021
+Yesterday logging was added to all methods, local info defined, logic moved to azure function, and core functionality updated to the correct workflow. 
+Today the logs showed that the main method did not provide the correct result in the message when an attachment was not found. The flow was updated and all results in the logs are now showing correctly. The timer was updated to run every hour. All updates were deployed to azure and pushed to gitlab. 
+
+11:02 AM 3/17/2021
+Updated the RHLProjectSender config field with the correct sender email address. 
+Email sent to evan to let him know to send all future emails with the list to the ECS development mailbox. 
+
+11:24 AM 3/17/2021
+Issue was determined that if multiple emails from the sender are present the logic will not function properly. This was updated to loop through all emails found from the sender to make sure the function app doesn't finish after attempting to parse the first email. 
+
+11:25 AM 3/17/2021
+Evan sent the new list of projects to the mailbox and now I am waiting on the scheduled function to run to make sure everything functions as designed. 
+
+10:08 PM 3/17/2021
+Notes from standup:
+russell - approve script
+joe cid disabled computers ad permissions service account
+sccm health 
+brian nettles - sccm health, broken or not (remote data or beyond trust script)
+dns on anyconnect causing issues on anyconnect, dns flush
+
+11:23 AM 3/18/2021
+field techs had their manager updated to Teddy, and were locked out of ARC. The profile access class was updated with the new value and published to all users.
+Mailbox monitor was checking the excel file for all sheets, and it needed to use only the last sheet. The function app was updated to use Datasets when reading excel files, then logic was added to find the last sheet and loop through to find the project names. 
+Function app was tested successfully, then deployed to azure. 
+
+9:32 AM 3/22/2021
+Automate sending emails to customers from assigned incidents:
+	List current assigned incidents
+	Display switch menu with incident number, shortdesc, last updated, opened, state
+	selecting option will display another switch to send different email options
+	selected option will build the email and open the outlook send message window
+	yes no option to update incident with the built email message to record the interaction
+
+8:58 AM 3/23/2021
+1on1 notes:
+Field tech change
+Possible auto email sender
+Navi for ECS Azure instance
+SnowProfile Changes
+Job Interview round 2
+
+11:31 AM 3/23/2021
+Joe Cid scripts with PowerShell
+BT Script workflow
+KB Article on ARC
+
+11:37 AM 3/24/2021
+skill set list of how to dev arc
+
+10:36 PM 3/24/2021
+API call was updated in the snow template call to the incident table for returning all the templates. The new call was tested and confirmed to be functioning. 
+Also testing the snowProfile functionality and starting up arc calling that as the main access check and if it returns false to use to past profile logic to create the users profile in case of a failure on the snowprofile logic. Still need to fully test, log, and commit.
+ 
+8:59 AM 3/31/2021
+Created logic in arc to use new snow profile, backup with old profile. Deployed to ea.
+Removed unused server connection methods.
+Added encrypted svcarc password to blob, and decrypter in arc.
+Refactored SnowTemplate methods to use servicedesk incident properties and logging
+Standup: kill trigger for isp and connection type if no on is remote issue 
+
+11:50 AM 4/2/2021
+Typing into forms before they load - jarnow01 issue report. User error. 
+
+9:08 AM 4/6/2021
+Creating deployment log to add to change log. 
+ISP info prompts moved to only show if issue is said to be due to being remote. 
+RHL Project Alert generation
+Added Candidate tagging to show candidate alerts in created incidents
+Updated Profile generator to use ServiceNow over AD
+Removed old Teams check features
+Resolved issue with certain incident templates not displaying
+Resolved Misc. bugs from template generator
+Removed connector to legacy server
+Updated Device Move and Enable script to use svcARC service account
+Updated logging coverage on profile, template, and tag generators. 
+
+11:21 AM 4/6/2021
+Timeout exception in device health azure function
+Update alert monitor azure function
+Branch Info Update: Open Status
+Azure instance update
+PowerShell script logging not working
+Reporting Changes:
+- NA Stats
+○ Consolidate into "Stats"
+○ Filter on regions (i.e. NA/EMEA/APAC)
+○ Filter on LOB's (RH vs. PRO)
+- Fatal
+○ Summary of what this page is
+○ Need filters, at least by month/quarter
+○ Title's on graphs
+- AskAlice
+○ Who "Asked Alice" the most
+- TimeSaved
+○ TotalTimeSaved by ClientID
+§ What is Blank?
+- BT Scripts
+○ Only 3?
+- Error
+○ Need filters, at least by month/quarter
+- Volume
+○ What are the "Log Level's"
+○ What do they mean?
+- Monthly
+Log Level's again
+
+Biggest users of ARC - ask alice
+
+9:18 AM 4/7/2021
+Two users so far have had issues accessing arc since the update to SnowProfile access checks. 
+jarnow01 & adrtan01
+Issue seems to be due to a response from the azure function that arc is failing to parse.
+"Unexpected character encountered while parsing value: S. Path '', line 0, position 0."
+DefineSnowProfile was updated to log the response string to determine what is being returned  that is causing the fail to parse. 
+Updated the defineSnowProfile method to check for the missing param response before deserialzing the snowprofile object.
+Added null check to SetSnowProfle to prevent null reference exception, added warning when found null
+Changed default access value to false in Profile
+Added more response checks and refactored DeserializeSnowProfile to separate method with verbose logging
+Added role definition to legacy profile definition
+deployed to all users
+
+11:35 AM 4/7/2021
+Standup:
+Ping wade for table name containing workday information. [sn_wsd_core_workplace_location] - Active branch information (Open/Closed Status)
+
+8:39 AM 4/12/2021
+CheckArcAccess azure function refactored and fixed for bug caused by missing job desctiption code.
+AzFunc was deployed with updates and is reflecting in the pbi report correctly.
+The current branch in arcv2 will need to be merged and changed to a new one for the passwordless entry. 
+A fix will need to be implemented to show the correct domain for all future logs. 
+
+8:58 AM 4/12/2021
+An updated was made to the alert opening even handler and was deployed to all users. This was prior to merge and new branch. Still on CandidateAlertRHL branch.
+
+9:03 AM 4/12/2021
+remove CheckOutlookFolders from alert generator. 
+
+9:22 AM 4/13/2021
+Dan Powers got a messege from someone in apac that they have been having performance issues with ARC. 
+Logging identified that they have not been sending logs since september. 
+Change log determined that this was caused by the fix to work around for anyconnect getting the IPv4 Address.
+The RemPoshLibrary was updated to remove IPv4 logging and pushed to new branch to gitlab.
+
+9:29 AM 4/13/2021
+Had a meeting with Joe cid yesterday and the scripts provided by rudy were reviewed and the process to refactor them into BT scripts was started.
+Showed Joe the testing process and updated the logging in the template to remove IPv4 logging.
+
+9:31 AM 4/13/2021
+Met with Terrance to work on the PBI reports. 
+All reports were updated with titles and updated visuals. 
+The checklist was followed and the only remaining item is to create a glossary of terms to add to the published report. 
+Domain issue identified was due to the logs not being recorded, not the domain specificly. 
+
+3:28 PM 4/13/2021
+Undid changes to the sign in process due to Joe N. getting access again and the priority now being lower. 
+Going to now do the testing to deploy the updated powershell module to start getting logs from eu and apac. 
+
+3:58 PM 4/13/2021
+Deployed the changes to all users. 
+
+9:25 AM 4/14/2021
+Followed up with Josh again and he said they are still trying to figure out what to do with Mimecast.
+
+10:45 AM 4/14/2021
+Standup Notes Pre-Meeting:
+	Updated All PBI reports
+	Met with Terrance to PBI dates
+	Mimecast.
+	Updated PS module, deployed.
+	APAC Issues from DP.
+	Closed incidents no ci from DP.
+	Refactored CheckAccessAzF, deployed - emea data missing from snow
+	Joe Cid Scripting,
+	Joe N aa enabled,
+	Bug fixes
+	=> DomoDataParse Intermittent Failures
+	=> Logging from Scripts as System
+	=> ARC Resource Automation Time Outs
+
+WOrd doc
+Customer closing incidents
+Mandatory CI when in Progress
+Passwordless entry for candidate support only
+
+11:10 AM 4/19/2021
+Identified issue with alerting disabled computers and resolved.
+Report came from alex. 
+
+3:51 PM 4/19/2021
+Updated login process to check for Candidate Role and bypass password requirement for entry. 
+
+11:32 AM 4/20/2021
+1on1
+80 20 split 90 day strech assignment 
+4 days with CCOE 1 day with ARC
+Branch location info exporter into csv
+
+10:04 AM 4/21/2021
+Redesign the branch info finder:
+When app first starts, load all office information into a list of cmnLocationObecjts
+Once the data is loaded it can be filtered and searched
+First box on the left will show all the offices that are currently loaded
+Double clicking an office will populate the second and third boxes with office info and active employees respectivly
+The search and filter criteria will allow the first box to be shortened
+Filters: 
+	u_employee_type= Field or Corporate
+	u_company= Protiviti or Robert Half
+	u_domain= NA or EMEA or APAC
+
+What happens when one or multiple of these values are blank?
+493 CmnLocations returned and parsed
+
+11:23 AM 4/21/2021
+location and location user objects definition methods created.
+UI will now need to be updated with the new layout and filters
+Then the workflow methods will have to be created to reflect the filters onto the displayed data
+Name search as well 
+Lastly the data export buttons and methods will need to be created. 
+
+7:41 AM 4/22/2021
+A method will have to be created to change the NA domain offices to their correct SA domain if they match the criteria
+
+8:03 AM 4/22/2021
+Create data intergrity and null checks with value definitions in the cmnlocationmethod class to pass correct data to the UI elements. 
+
+8:11 AM 4/22/2021
+Add an ID field to each record to use for finding the record from a single value accurately
+
+8:24 AM 4/22/2021
+Add loading visual to main branch find window to show that branches are being retrived
+
+9:28 AM 4/23/2021
+need to add value change to when looking up "blank" that it changes to null or empty in the linq
+
+9:38 AM 4/23/2021
+Check arc access azfunc was updated with the new assignment group and deployed to azure. Changes commited in git. 
+Add color change to the selected value in the combobox items instead of setting it as the selected value. 
+
+12:27 PM 4/23/2021
+Adding excel file export support would add a lot of bloat to arc that all users would have to download to their machines. 
+
+10:06 AM 4/26/2021
+Add “Copy” button to copy results. (one button for second pane, one button for second pane)
+Add a “Clear All” button to clear results in 2nd/3rd pane
+Add “Reset” button to reset filters
+Add “export” menu at the top
+Options or what to export:
+	Users
+	Branch Info
+
+Add null check for cost center to RedefineCmnLocationUserObjectToCorrectValues
+
+4:41 PM 4/29/2021
+CCoE Standup notes:
+	1on1
+	AWS Training
+	Meeting with Debbie
+	AppGate setup + support scenarios 
+	AWS CLI scripts + workspace reports
+	Overlord access + api access and scripting
+
+2:30 PM 4/30/2021
+CCoE Standup notes:
+	AWS Tranings
+	Helped debi with unhealthy workspace
+	Finishing up work from previous role
+	Training session with replacement for previous role
+	Expanding functionality of workspace reporting 
+	
+11:02 AM 5/3/2021
+Send Jesper email to ask for read only SNow API Service Account for getting information about candidate support incidents
+CloudHealth Overview meeting later this week
+Wafflebot support meeting with Niel
+Meeting with Ken for Overlord
+Next week get assigned some tasks and get working
+Take a look at the backlog to see if there is something that I can do
+
+12:36 PM 5/3/2021
+Backlog items that could be taken over:
+S - AWS Administration SAA-5928
+Inactive WorkSpaces - Plan Remediation
+
+S - AWS Administration SAA-6934
+Q3 2020 Investigation - AWS CloudTrail now provides relevant user statistics to act on anomalies detected by CloudTrail Insights
+
+S - AWS Administration SAA-4573
+Investigate and determine if we can rationalize the number of AppGate gateway in use
+
+S - AWS Administration SAA-5954
+Develop process for sending AWS Alerts to Big Panda
+
+S - AWS Administration SAA-5333
+Ensure that all KMS keys are tagged.
+
+S - AWS Administration SAA-7135
+Investigate DevOps Guru
+
+12:55 PM 5/3/2021
+Send Jesper email to ask for read only SNow API Service Account for getting information about candidate support incidents - Completed
+
+3:32 PM 5/3/2021
+Standup Notes: 
+	Over 50% on acloudguru course
+	Met with jesper, discussed meetings to overview CloudHealth, Wafflbot, and Overlord
+	Reviewing Backlog for tasks I can do, created list, confirming access
+	//Inactive WorkSpaces was one, downloaded report, Task is waiting on EADS
+	Sent email to Jesper for getting SNow read only API service account
+	Continuing scripting with aws cli
+	No Blockers
+
+10:48 AM 5/4/2021
+Need access to AppGate gateway managment console/dashboard if it exists.
+
+4:28 PM 5/4/2021
+computer name search function
+Menu display of tool options
+Status bar of when data was last reloaded
+Show previous lookups
+Add lookup for AWS workspace ID
+Read tasks from CCoE assignment group and grab workspace ID
+
+9:36 AM 5/5/2021
+Check Wiki for workspace documentation
+
+3:20 PM 5/5/2021
+Found another workspace role that had workspaces deployed in us-east-1.
+Added to the list in the workspace tools app.
+
+3:57 PM 5/5/2021
+CCoE standup notes:
+	Cert training building VPCs
+	Workspace documentation
+	Retreval automation
+	Candidate AWS Workspace Emergency Termination process
+	
+
+4:10 PM 5/5/2021
+goals and survey
+
+10:01 AM 5/6/2021
+Talk to Jesper about getting a small AWS account created for testing purposes
+Use workspace code in planview for workspace related work.
+Round up to half hours
+https://github.com/aws/aws-sdk-net/issues/1802
+
+11:34 AM 5/10/2021
+1on1 with Jesper:
+Waiting on jfog for the servicenow API service account
+Patching automation of workspaces
+Write out the workflow of workspaces create and delete
+Write out email to create serviceNow automation with service account
+
+Jfog idea - "My first thought is that I would like him to write a program (Python of course!) that would pull the latest information from a CloudWatch Logs group and extract information from a JSON file.  The information should then be written to an Excel file that has the date as row and the cloudwatch group as column.  the value should be in the intersection."
+
+Create list of improvements for Workspace support flow - especially patching. 
+
+Whizlabs and Braincert - for practice exam questions
+AWS offers practice questions for exam
+Solutions architect forums 
+
+Follow up with Debi about how to script patches in workspaces
+Debi created some spreadsheets for workspaces that are inactive
+Possibly create PowerBI report for workspace data. 
+
+3:57 PM 5/10/2021
+Standup:
+	AWS cert training
+	finished a cloud 
+	meeting with jesper
+	dynammodb connector 
+	CloudWatch log reader (.net > python)
+
+10:16 AM 5/12/2021
+Grab task info from ServiceNow - ITAIPD - CCoE Cloud Center of Excellence Candidate AWS Workspace Emergency Termination
+Candidate Name = Whitney Johnston
+AWS Workspace = ws-vv0knsrlk
+Region = us-east-1
+Email = jayhumes@gmail.com
+Use this data to create the partition key to search Dynamodb
+Return matching records and compare them with the workspace id/name idk what that value is yet
+populate display with all workspace values
+query the workspace request lambda cloudwatch logs for data one when it was created
+query the workspace delete lambda cloudwatch logs for when/if it was deleted
+display the log data info
+If no workspace found update and close task
+
+10:25 AM 5/12/2021
+Deploy latest version of arc
+standup notes
+	FindBranchInfo updated per request items
+	Added support to create dynamic alert lists
+	excel and pdf support would add considerate bloat to arc that all users would need to download 	consistently
+
+Add teddy to ddal open user list 
+Get service account mbam access for looking up bitlocker codes
+Prevent need to escalated requests to GCS - advanced mbam access level 
+possibly stored in intune 
+Talk to russell or zach pond
+Service Account with elevated access to have MBAM Advanced Level Access
+Elevated Support Access Request | ServiceNow Service Management (service-now.com)
+
+Update Lookup UI
+contingent worker has rh ID
+Temp RH employees exist in Candidate lookup
+Combine candidate lookup with internal lookup so that the temp worker split will be resolved
+What client does the candidate work for, if rh then they would be internal and would be loked up for internal id
+Example - from katina: INC1569391
+
+Log groups under aws maintenance
+Grab each dates value and put it in a column
+one column for each log group
+for each group - grab latest stream - read log and grab DayTotal value
+
+3:25 PM 5/12/2021
+Standup Notes
+	AWS cert prep
+	Standup on previous role, task updates and new assignments
+	Meeting with jfog to go over cloudwatch automation python script
+	Finding out when Wafflebot is supposed to be cut over to Workday
+	Weird issue with reading cloudwatch log from python + .net
+
+print each group to see why there are only 17 and not 22
+Changed stream grab to sort descending, now most up to date streams are being returned
+21 out of the 22 are now showing and the stopped-instance issue is resolved
+Will need to find the single missing group
+Then create a dataframe with the group names as the colums, and the dates as the index with the DayTotal as the value
+
+
+9:27 AM 5/13/2021
+Email sent to keith rodgers about WaffleBot workday transition timeline.
+
+10:12 AM 5/13/2021
+Ask ramon about adding training time via SA - Non-Project Training - per Jesper
+
+3:35 PM 5/13/2021
+Cleaned groups to only use groups with recent data
+scrapped idea of using dataframe and just built the csv with lists of lists
+Output is now working but will need to be updated to read the previous output and append a new line for each lookup
+
+3:46 PM 5/13/2021
+Standup Notes
+	AWS cert prep
+	CloudWatch script
+	Following up with security about WaffleBot transition information
+
+11:11 AM 5/14/2021
+Create lambda and s3 bucket to contain and run python script and csv output
+Lambda Name: CCoE-Extract-Maintenance-Log-Groups-DayTotals-to-CSV-in-S3
+S3 Bucket Name: CCoE-Extract-Maintenance-Log-Groups-DayTotals-to-CSV
+Need to create a roll with read permissions to Cloudwatch and write permissions to S3
+admin privileges in the itaipd-jrftst account
+
+2:15 PM 5/14/2021
+Created Lambda, S3 Bucket, policy and role.
+Created cloudwatch group, stream, and event.
+Tested cloudwatch group, stream, and event successfully. 
+Attached new policy that RW's the created s3 bucket only to the new lambda role
+Function got deleted somehow, recreating
+Created policy for lambda to read cloudwatch logs, tested succesfully from test cloudwatch logs
+Just need to create and save the csv into s3
+
+5:16 PM 5/14/2021
+Workspaces support ITASK0216104
+
+9:17 AM 5/17/2021
+Name
+Vertical = CCoE
+Project = <Any Valid Planview Time Tracking Code> Data Classification = <Most of the Time it is going to be "Internal">
+
+1:22 PM 5/17/2021
+Resolved workspace time zone issue regarding customer's timezone
+Completed lambda in test instance that reads the cloudwatch groups and creates the requested report.
+
+1:39 PM 5/17/2021
+Lambda function has permissions to read log groups, log streams, log events, and read/write objects in the specific created s3 bucket.
+The lambda runs python 3.8 and executes a script that reads specific log groups in cloudwatch and formats the found data into a csv that is then uploaded to S3. Each execution appends a new line on the csv file and is re-uploaded to S3 with the same name. 
+
+4:00 PM 5/17/2021
+Standup Notes:
+	Workspace support - timezone issue
+	Finished up lambda in test account
+	AWS Cert prep
+
+10:01 AM 5/18/2021
+https://rhiprod.service-now.com/api/now/table/task?sysparm_query=assignment_group%3D1eab355f6f745500bb1e5afc5d3ee433&active=true
+- lists active snow records assigned to ccoe. can be used to track open work metrics and be saved locally to mongo. 
+
+10:39 AM 5/18/2021
+Created ARC Planner cards from last weeks standup. 
+
+3:43 PM 5/18/2021
+Created Snow connector in workspace tools, confirmed functionality.
+
+4:00 PM 5/18/2021
+Create feature to open parent links from active tasks returned.
+Create switch to display found results to select which one to open in browser. 
+
+Standup Notes: 
+	Previous Role Work
+	AWS Cert Prep
+	SNow API integration in .net tools
+
+Close current Issue for lambda, create new one for creating cloudformation for deploying to prod
+
+3:58 PM 5/19/2021
+Check the azure storage folder for logging failures.
+
+3:58 PM 5/19/2021
+Created deployment documentation for version 2.1.62 and 63.
+Added documentation to general change log and the T2 Arc channel. 
+Updated merge requests with the docs and merged into master. 
+Created new branch and pushed to origin.
+
+3:59 PM 5/19/2021
+From the standup today for ARC:
+	Submit the request for the service account to get MBAM permissions
+	Start working on the master lookup feature for arc.
+	Work with Joe Cid on creating a list of features to create how to KBs for. 
+	
+4:07 PM 5/19/2021
+Need to start looking into CloudFormation templates and how they work.
+Create a test template that recreates all the resources that were used in the test account.
+Log all the resources that have been created then delete them all. 
+Use the created template to recreate all of them. 
+
+10:30 AM 5/20/2021
+1on1 with Jesper: 
+	Write CF in YAML 
+	Create JIRA issue and select the sprint that it goes into 
+	Can now put issues in sprints
+	Workspace ORD update
+	Operational readiness document 
+	Look for stormcell updates that affected workspaces 
+	Wiki pages are markdown
+	Currently read only on wiki, going to be given write access 
+	Put SA cert in Workday Goals
+	Check workspace configuration items in servicenow
+	Write some docs on the workspace tools for Jesper
+
+11:31 AM 5/20/2021
+Sent email to jesper containing documentation on the WorkspsaceTools.
+
+3:44 PM 5/20/2021
+Standup Notes: 
+	Previous role work
+	exam prep
+	SNow API and DynamoDB integration in .net tools
+	jesper 1on1
+	workspace tools documentation
+	all hands meeting
+	working on cloudformation template for python lambda automation 
+
+3:48 PM 5/20/2021
+Create feature in workspace tools to save tasks returned from snow into mongo, show new tasks that were not previously returned.
+
+3:45 PM 5/21/2021
+Standup Notes:
+	CloudFormation Template work
+
+5:25 PM 5/21/2021
+Cloudformation template successfully creates the role with required permissions. 
+The only part left now is fixing the lambda creation and determine why it is failing to create. 
+
+11:29 AM 5/24/2021
+Could open up a case with AWS support to determine what is wrong with the template. 
+Response via chat or call to get faster service.
+
+12:47 PM 5/24/2021
+cloudformation template required !GetAtt function to grab the arn of the created role previously created in the template. 
+The stack created successfully and was tested to have the correct permissions. 
+
+1:12 PM 5/24/2021
+schedule meeting with josh and tony 
+
+3:45 PM 5/24/2021
+Deleted stack and retested. Confirmed functionality. 
+Standup Notes: 
+	Previous Role Work
+	Finished Cloudformation Template
+	
+11:23 AM 5/26/2021
+Ramon Standup
+	Follow up
+
+3:59 PM 5/26/2021
+CCoE standup
+	Previous role work
+	Workspace support 
+	Working on workspace jira "Validate Candidate Workspace Deletion"
+
+4:02 PM 5/27/2021
+CCoE Standup
+	Previous role work
+	1on1
+	AWS prep
+	Workspace jira 
+
+5:29 PM 5/27/2021
+need to add region prop to the dynamodb class object that is passed to the query methods
+
+10:37 AM 5/28/2021
+How are the ID's generated for the punch card dynamodb table. 
+With the ID's, candidates can be searched for when their last log in was. 
+
+12:34 PM 5/28/2021
+Need to find list of reports being generated for the workspaces
+WSfull report
+WS DB report
+WS Inactive report
+WS Punch card
+
+2:30 PM 5/28/2021
+CCoE Standup
+	finished candidate workspace delete 
+	Started workspace ORD jira
+
+12:03 PM 6/2/2021
+Creating todo list, reviewing work log to find any missed tasks. 
+Filling out Workspace ORD documentation information 
+
+1:30 PM 6/3/2021
+Finished refactoring the InfoGenerators for ARC, which allows for looking up internal and candidate users at the same time. 
+Few bugs need addressing and have been added to the todo. 
+Meeting with Debi now to go over some of the  workspace ORD information.
+
+2:35 PM 6/3/2021
+Finished call with Debi. 
+Got some information about the different reports being made, the lambdas running them and where they are being stored at. 
+There is some info on Bundles as well that is not in the ORD that may need to be added. 
+Debi provided the group needed to edit the wiki, going to have to email jfog to get approval then submit the incidnet to accounts. 
+The code section of the ORD will need to be updated first, then the report section will have to be added. 
+If required, a cloud diagram can be created at cloudcraft.co 
+
+4:01 PM 6/3/2021
+CCoE standup: 
+	Previous Role Work
+	Workspace ORD work
+	Met with Debi regarding ORD, scheduled meeting with Ken for tomorrow for ORD
+
+4:00 PM 6/4/2021
+CCoE Standup
+	Testing refactor changes
+	Workspace ORD documentation
+	Met with Ken to review workspace resource info
+	No Blockers
+
+11:36 AM 6/7/2021
+submit jira to get python and cloudformation template reviewed CCoE planning placeholder
+Two Jiras, one for actual review of cf template, 
+Second jira to revise jira per changes from review 
+Create second jira, refer back to first jira issue, cannot start second until previous jira is completed 
+Spot in Jira that depends on another Jira issue before that one can be started 
+
+3:59 PM 6/8/2021
+CCoE Standup:
+	AWS Prep
+	Old Role Work
+	Workspace Support
+
+11:26 AM 6/9/2021
+ARC Standup:
+	Code changes complete, finishing up testing before deploy to early access.
+	Followed up with joe on KB list, he will get back
+	Followed up with Tony again, waiting
+	Still waiting on approval for MBAM access
+
+3:56 PM 6/9/2021
+CCoE Standup:
+	cert Prep
+	Old Role Work
+	Workspace Support
+	CDK learning
+
+3:28 PM 6/10/2021
+CCoE Standup
+	cert Prep
+	Old role work
+	1on1 with jesper
+	cdk learning
+
+10:11 AM 6/11/2021
+Finished refactor of new info generator. 
+Finished testing of new info generator. 
+Updated remove unwanted computer values.
+Deployed to Early Access.
+
+3:57 PM 6/11/2021
+CCoE Standup
+	certPrep
+	Old role work
+	CF template updates from Niel's review 
+	No blockers
+
+3:59 PM 6/14/2021
+CCoE Standup:
+	certPrep
+	CF Template updates
+	No Blockers
+
+11:25 AM 6/16/2021
+ARC Standup: 
+	RITM0748011 Resolved
+	Following up with EA group to make sure everything is good before deploying to all users
+	Have to write deployment documentation and how to
+	Going to start working towards getting MBAM access setup
+	What does the end product look like for MBAM functionality 
+	Added Problem ticket connector, shows current problem tickets. Change tickets not updated 
+	Tony said he assigned the azure sub creation to azure team, then stopped responding. 
+	
+Pull CIC Call ID and add to incident. Resolves issue where the call can be found for a specific incident to shorten lookup time. Previously had to look through all the calls to find the specific call. 
+Decompile the CIC integration tool again to find the code that reads data from CIC. 
+Key ID and Username
+Determine what the new access can give us in support scenarios. Follow up with Russell to see if he show how to do it. 
+Azure Team - Jerry Jarvis Team. - Rob Shearin and Ramon CC on Tony follow up. 
+
+3:36 PM 6/16/2021
+CCoE Standup:
+	Old Role Standup
+	CF changes 
+	livelink-replacement project review 
+
+4:02 PM 6/17/2021
+CCoE Standup:
+	CF changes
+	wsl setup
+	livelink-replacement project review
+
+11:16 AM 6/18/2021
+Russell Meeting: 
+	Candidate devices are not in mbam
+	All the elevated role does is remove the required field setting for username for getting keys back. 
+	Rus is going to try to get approval for getting techs the elevated access role to just get the keys themselves.
+	He is going to follow up on that after their meeting, and with any status update for mbam being migrated to intune
+
+4:00 PM 6/18/2021
+CCoE Standup:
+	CF Template
+	CF CLI
+	Powershell
+	
+4:01 PM 6/21/2021
+CCoE Standup:
+	New suggestions from neil completed
+	CF template completed
+	Working on getting jenkins pipeline started 
+	
+11:29 AM 6/23/2021
+ARC Standup:
+	MBAM
+	Azure
+	CIC
+
+3:54 PM 6/23/2021
+CCoE Standup: 
+	Old Role work and standup
+	Got access to jenkins
+	Jenkins pipline
+	
+10:36 AM 6/24/2021
+1on1:
+	Wafflebot - Useage discovery, is this used for every term or only some?
+	If it is being used, then create development environment
+	Prioritize issues to determine most impactful changes
+	Bug fixes or complete rewrite? 
+	
+3:57 PM 6/24/2021
+CCoE Standup:
+	1on1 with jesper - wafflebot
+	Jenkins pipeline
+	linting python script 
+	Old Role work
+
+11:27 AM 6/30/2021
+ARC Standup:
+	Azure Sub created
+	CIC Installed and configured
+	CIC Addin decompliled and code exported
+	List of attributes obtained, need to test full output. 
+	Azure resources need to be recreated in new sub.
+	Possible bug from todd reported 
+
+4:01 PM 6/30/2021
+CCoE Standup	
+	old role standup, got azure sub created
+	Jenkins pipeline work
+	Workspace support
+
+1:31 PM 7/1/2021
+Allhands
+	No update on Azure VDI for candidates from Dwight and friends
+
+Been working on migrating azure resources from sub to new sub
+
+1:56 PM 7/1/2021
+Finished manually creating Workspace for accounts team with custom bundle after getting required permissions. 
+
+3:56 PM 7/1/2021
+CCoE Standup:
+	Migrating all azure resources to new subscription
+	Creating azure blue print for new resources
+	Workspace support
+	No update on Azure VDI for candidates from Dwight and friends - all hands
+	Jenkins pipeline agent issue
+
+11:49 AM 7/2/2021
+Blocker - agent issue on jenkins dev 
+
+2:28 PM 7/2/2021
+CCoE Standup: 
+	Helping a new hire getting access to azure 
+	Azure sub
+	Jenkins pipeline
+
+3:42 PM 7/7/2021
+CCoE standup:
+	ARC support
+	Cert prep
+	Meeting with Johnathan for jenkins groovy scripts
+	Pipeline work
+	Training meeting for back to office
+
+2:40 PM 7/8/2021
+CCoE Standup:
+	ARC Development: Jamf outage
+	Azure Migrationm
+	Cert Prep
+	Workspace support
+
+3:58 PM 7/9/2021
+CCoE Standup:
+	Jamf API support
+	Azure Migration
+	Cert Prep
+
+3:57 PM 7/12/2021
+CCoE Standup: 
+	Jenkins Pipeline
+	
+3:01 PM 7/14/2021
+CCoE Standup:
+	Workspace Support
+	Azure Resource migration
+	Azure function code changes to new db
+
+2:34 PM 7/15/2021
+CCoE Standup: 
+	1on1
+	ARC Tool updates for migrated azure resources
+	Update .net library and redeploy azure functions 
+	Deployed changes 
+	
+3:53 PM 7/16/2021
+CCoE Standup: 
+	ASG disabled and jenkins dev instances terminated, neil brought them back. 
+	Jenkins pipeline - update stack
+	Azure Migration - deployment migration
+	Cleaning up old kanban
+
+2:53 PM 7/19/2021
+Azure Migration - corpshare being terminated shortly. Have to escalate migration. Working with Jael to get the process started. 
+
+Description: 
+Corpshare is being removed and the installer for the ARC tool will need to be migrated to Azure.
+
+Deliverable: 
+Need to create an AAD Group to contain users who need access to ARC.
+Give the Group access to read arc-installer blob container
+
+Azure Blueprint created and shared. 
+
+3:58 PM 7/19/2021
+CCoE Standup: 
+	Azure Blueprint created and sent to new SA
+	Corpshare migration plans - meeting with dwight wednesday
+	Jekins and cert prep
+
+3:52 PM 7/21/2021
+CCoE Standup: 
+	Meeting with ts
+	Migration tool development 
+	Meeting with dwight later today 
+
+3:39 PM 7/22/2021
+CCoE Standup:
+	Meeting with dwight went well and he is helping move things forward
+	1on1 with jesper
+	worked with sa from dwights team to finalize the requirements for tool migration
+	updated documentation on open tasks to help prioritize - pruned backlog for stale tasks
+
+3:39 PM 7/26/2021
+CCoE Standup:
+	ARC Tool support
+	sa practice exam
+	workdday goals -jesper meeting
+
+11:17 AM 7/28/2021
+Still waiting for wendell to fix my ad groups
+
+11:18 AM 7/28/2021
+ARC Standup: 
+	Azure resources migrated and ARC updated to all users
+	In progress on ARC BI Dashboards update to new db
+	Working on data migration to new db
+	Going to be adding remaining arc tasks to Jira sprints for CCoE:
+	• Cosmos DB Data migration – 2 Hours
+	• Report Dashboard Update & Re-deploy – 1 Hour
+	• ARC Install Location Migration – 3 Hours
+	• Call Software Add In Integration – 4 Hours
+	• Misc. Low Priority Bugs – Unknown Time to completion
+
+3:32 PM 7/28/2021
+CCoE Standup:
+	Fixed access issues and can now access aws, gitloab, and jira
+	met with ts, 
+	found and resolved the domo api credential bug and deployed to all users 
+	RhiTest is currently updated? -yes
+
+2:43 PM 7/29/2021
+CCoE Standup:
+	1on1 with jesper
+	Created JIRA issues of remaining ARC Tool tasks. 
+	All hands
+	Continuing development of db migration tool for saa-8049
+
+2:50 PM 7/30/2021
+CCoE Standup:
+	Updated Power BI Reports for new Cosmos DB
+	Added glossary to report
+	deployed changes to power bi workspace
+	Continued development on db migration tool
+	Found bug in mailbox monitor azure function
+
+3:52 PM 8/2/2021
+CCoE Standup:
+	ARC Tool support
+	db migration tool development
+	practice exams
+
+3:55 PM 8/4/2021
+CCoE Standup:
+	ARC Tool support
+	TS meeting
+	Continuing progress on arc tool jiras 
+
+3:59 PM 8/5/2021
+CCoE Standup:
+	practice exam
+	1on1 with jesper
+	wrapping up current arc tool jiras 
+
+3:57 PM 8/9/2021
+CCoE Standup:
+	1on1 with jesper
+	Workspace support
+
+3:58 PM 8/11/2021
+CCoE Standup: 
+	Workspace support
+	arc tool cic add in
+	Still blocked install migration jira, waiting on dwight to get back from cto
+
+4:01 PM 8/13/2021
+CCoE Standup:
+	add in development progress
+	IAM Role Request TASK0977419
+	Workspace support similar to "Workspace Security Groups INC1620164"
+
+3:57 PM 8/16/2021
+CCoE Standup:
+	Add In Development
+	ARC Tool support and changes deployed 
+	1on1 with jesper
+	List of Jiras to make 
+
+10:58 AM 8/18/2021
+Registry was edited and the following profile was deleted: S-1-5-21-2642983867-2064994145-3238383532-1469.bak
+
+2:59 PM 8/18/2021
+Merged changes and created new branch
+Deploying new workspace to test customer's reported issue
+Trying to find a similar cloudformation stack to deploy the new IAM role. 
+
+3:59 PM 8/18/2021
+CCoE Standup:
+	Code change documentation for arc tool changelog and merge
+	Starting code changes for integrating add in
+	Workspace support - need to update trusted zone for us-east-1 workspaces
+	Created workspace to replicate and test resolution
+	Creating powershell script to resolve issue
+	Then will need to update the bundle for a perm fix
+	IAM role creation, creating cfn template 
+
+8:35 PM 8/18/2021
+All websites from debi were added to privacy and trust, still needed to add https://*.msauth.net
+
+10:05 AM 8/19/2021
+1on1 Notes:
+	Found manual fix for Workspace issue
+	Want to just disable Enhanced Security Configuration
+	Found similar admin role template for IAM role creation task
+	
+1:13 PM 8/19/2021
+Template file created in rh-iamroles repo
+Need to deploy cloudformation to rhcloudgate account and itess-apac-nonprod
+Need to create trust relationship from itess-apac-nonprod to rhcloudgate
+
+3:56 PM 8/19/2021
+CCoE Standup:
+	Combined old and new add in to simplify deployment to all endpoints
+	Workspace support and documentation, sent fix to tech support
+	Started working on creating an updated workspace bundle
+	Working with jfog on stacksets for creating iam roles 
+
+3:54 PM 8/20/2021
+CCoE Standup:
+	Finished integration of new add in for ARC tool, call software output automatically put into incident created during session
+	Updated installer to replace old add in with new add in, but wait for call software to close 
+	Last update is to determine who has the old add in and who has the new to start the update
+	
+3:54 PM 8/23/2021
+CCoE Standup:
+	Bug fixes and minor updates to previous changes
+	Deploying and tracking of all changes
+	Finishing up changes for other left over issues
+	Last sprint of active arc tool changes, cleaning everything up
+
+11:50 AM 8/24/2021
+Deployed changes to all users.
+Followed up with users to let them know whats coming and troubleshoot potential issues with the update
+Resolved issues that surfaced from the update
+
+12:49 PM 8/25/2021
+Migrated all gitlab repositories from secDev group to arc dev group
+Updated all local repos to the new remote location
+Interviewed potential replacement for old role
+IAM group request support
+Started work on Workspace cleanup
+
+3:59 PM 8/25/2021
+CCoE Standup:
+	Migrated all gitlab repositories from secDev group to arc dev group, Updated all local repos to the new remote location
+	Interviewed potential replacement for old role
+	IAM group request support
+	Started work on Workspace cleanup
+
+1:04 PM 8/26/2021
+Workspace cleanup jira
+1on1 with jesper
+iam support
+interview for replacement
+technical update
+
+4:00 PM 8/26/2021
+CCoE Standup:
+	
+3:59 PM 8/27/2021
+CCoE Standup: 
+	Created List of Workspaces to delete
+	Updated local tools to integrate workspace punch card dynmodb table
+	ARC Tool support
+	Ethics training 
+	
+5:05 PM 8/27/2021
+cleaned local repositories of old ARC related repos.
+removed test project repositories.
+
+9:39 AM 9/1/2021
+svcARC password reset completed, azure functions updated with the new password
+
+2:53 PM 9/1/2021
+CCoE Standup: 
+	Workspace cleanup overlord command list finalized
+	ARCTool service account password reset
+	IAM support
+	WS support
+
+10:40 AM 9/2/2021
+Ping ken to get a refresher of overlord to then get access. When he gets back in on Tuesday.
+Schedule session with him 
+
+10:46 AM 9/2/2021
+Future workspace build requests will be forwarded to rhworkforce email to let them know we don't do that anymore. 
+
+10:49 AM 9/2/2021
+Jesper going on CTO on Tuesday for three weeks. 
+
+3:05 PM 9/2/2021
+CCoE Standup:
+	IAM Support
+	1on1 with jesper
+	duplicate CloudTrails
+	Workspace Support
+
+2:31 PM 9/3/2021
+CCoE Standup:
+	IAM Support
+	ARC Support
+	Code changes for small bug, deployed to all users 
+	Continueing work on CloudTrail duplication Jira
+
+10:19 AM 9/8/2021
+The python script to identify the duplicate cloudtrails has been written. 
+An email will need to be created and sent to the account owner. 
+An idea was to put a link in the email that when clicked triggers an API gateway endpoint to delete the specified cloudtrail. 
+
+3:54 PM 9/8/2021
+CCoE Standup:
+	Wrote python script for finding duplicate cloudtrails
+	Working on networking issue on snow midserver not accessing eu and apac ldap servers
+
+
+3:59 PM 9/9/2021
+CCoE Standup:
+	Updated python script to generate emails for notifying account owners of duplicate cloudtrails
+	Sent to all account owners
+	user support for access 
+	Started creating turn over plan for new dev
+
+3:55 PM 9/10/2021
+CCoE Standup:
+	Got approval emails for cloudtrail cleanup, 15/25
+	Started work on deletion portion of python script
+	Workspace support
+	Wrote developer turn over plan, confirmed with ts management after back and forth
+	
+2:42 PM 9/13/2021
+CCoE Standup:
+	Updated python script to delete approved cloudtrails
+	Workspace support multiple incidents resolved
+	Deleted approved cloudtrails
+	cleaned up python proj and commited to gitlab
+
+3:49 PM 9/14/2021
+Updating daytotal project to run in prod aws account 
+deleted old bucket from test account and pushed to prod account
+updated jenkins and cfn files in prod gitlab repo. 
+
+12:34 PM 9/15/2021
+Sent follow up emails to all cloudtrail duplicate account owners. 
+Received ping from eloy about mid server networking issues.
+
+3:51 PM 9/15/2021
+CCoE Standup:
+	Followed up with duplicate cloudtrail account owners
+	Deleted more approved CTs
+	Updated maintenance log group lambda project to deploy to prod
+	had to fix cfn and jenkins file 
+
+3:50 PM 9/16/2021
+CCoE Standup:
+	Working on tooling to better support network issues
+	Troubleshooting networking issues on new SNow mid-servers
+	Troubleshooting CRR issue with alfresco s3 buckets from february
+
+3:56 PM 9/20/2021
+CCoE Standup:
+	Finished up support for snow MidServer network issue
+	Workspaces support
+	Finished cloudtrail cleanup
+	Back and forth with work done for arc install location migration
+	Finishing up jira for giving tech support access to corp workspaces 
+
+3:58 PM 9/21/2021
+CCoE Standup:
+	Finsihed jira for ts access to corp WS's + documentation
+	Back and forth with SA for install location - Updated requirements again
+	Support for access requests in stacksets
+	Training session with replacement dev
+
+3:58 PM 9/22/2021
+CCoE Standup:
+	cfn for new role with dan
+	updated cfn and lambda for previous automation for jfog
+	ringcentral api integration
+	training session with replacement dev
+
+11:35 AM 9/23/2021
+Got account set up for me from paul
+Signed in and created app in RingCentral
+Authenticated with new app using python sdk
+working on line item requirements POC in python
+
+	Get all phone numbers not assigned to anyone, pick one to assign to new employee
+	Then create user and and extension 
+
+10:25 AM 9/27/2021
+Meeting with jesper getting back from vacay:
+	Getting more info on RC project
+	Getting scope of tasks / How long things will take to finish 
+	CRR S3 support issue
+	IAM Create Role SNow task - Check with Thai for this
+	ARC Tool migration
+	
+Put notes in our sprint or there sprint, Create link jira to track the petd jira issue
+
+4:00 PM 9/27/2021
+CCoE Standup: 
+	Created Role from request
+	Worked on RingCentral API task - Blocked by graduation process
+	Migrating/training with replacement
+	Workspace Support
+
+9:07 AM 9/28/2021
+Created tracking jira for RC issue
+RingCentral still not ready for graduation.
+
+1:54 PM 9/28/2021
+Updated eads-ea-prod MidServerSecurity group to contain added rules created in non prod account.
+Still need to update the route tables to confirm that they have the same access. Will ahve to follow up with Tiffany to make sure what she did is done in the prod account. 
+
+3:55 PM 9/29/2021
+CCoE Standup: 
+	RingCentral API work
+	Training with replacement 
+	IAM Support
+	Technical Update
+
+10:36 AM 9/30/2021
+Jesper 1on1
+Schedule regular 1on1's with Dan. 
+Most work will be done on own, review topics with Dan.
+
+1:18 PM 9/30/2021
+Saranya Inala is unable to login to her Amazon workspace INC1646284
+
+4:01 PM 9/30/2021
+CCoE Standup:
+	Jesper 1on1
+	RingCentral API
+	Workspace Support
+
+11:02 AM 10/4/2021
+Quick Check In:
+	Update jira with time spent and create part 2 for second ccoe sprint 
+	Review SNS Unhealthy Workspace emails 
+	Follow up with SNow team / Tiff for transit gateway change she made to replicate in Prod account
+
+	
+3:50 PM 10/4/2021
+CCoE Standup: 
+	RingCentral API - Had RC support manually work around another technical blocker, back in business
+	Workspace Support
+	Creating script to review Unhealthy Workspace SNS topic
+
+10:29 AM 10/7/2021
+Jesper 1on1:
+	Scheduling meeting with rhl james
+	Create Part 2 Jira 
+	Get planview code for effort 
+	Jerry Be - shortel guru, or Joan Longhorn
+	Creating new projects - Project intake form, approve by ati leadership
+	Ask for write up of full expectations for RC plan
+	Get more familiar with appgate - Gitlab migration to EE will now go over appgate - two to three weeks away 
+	QuickSight - Is a go - jesper and jfog want it done yesterday
+
+2:47 PM 10/7/2021
+CCoE Standup:
+	1on1 with Jesper
+	RingCentral API exploration/development
+	Back and forth with CPR group to determine requirements for RC API
+	RHL Subnet issue for new account deploying Workspaces - met with them and provided info on what was going on
+	Resolved CIDR block issue with creating new subnets 
+
+9:32 AM 10/8/2021
+I’ve had the last requirement working for me as well, creating user accounts. The main thing missing of course is the logic to assign the correct area code’s DID to the user being created (What we discussed 10/6). 
+
+12:01 PM 10/8/2021
+Met with Technical support technical writer to create SNow KB's for workspace support. 
+
+2:30 PM 10/8/2021
+CCoE Standup:
+	RingCentral API - Updated console app and reviewed with Paul Rarey, have to follow up with RC support to confirm what needs to be done to. Extremely confusing terminology, not sure the order of operations to automate user 		generation.
+	Met with new Technical Writer to update KB artices for Workspace support
+	Started work outlining the project for creating the ops report quicksight dashboard
+
+3:59 PM 10/8/2021
+Account: rh-legal-bqe 
+Subnets to delete:
+subnet-012ab7a3c0f266f36 public
+subnet-05ce77cc42b082c58 private
+Notified they will need to email jesper the details as it require super admin. 
+
+10:57 AM 10/11/2021
+resolved rhl workspace subnet issue
+waiting on response from ess for working with ring central support
+starting outline of quicksight ops report, attempting to find where data is coming from
+Create Jira for RC and QS projects 
+CCoE Inovations - epic for quicksight report
+Reschedule the demo to earlier in the day
+
+4:00 PM 10/11/2021
+CCoE Standup:
+	Got documentation for RC API project, updating console app with correct requirements
+	Documenting requirements for quicksight dashboard
+	training with new dev for old role
+
+3:57 PM 10/13/2021
+CCoE Standup:
+	Writing out more functionality in console app for RingCentral API Demo tomorrow 
+	Setting up infra for gathering data to create quicksight dashboard for ops report
+	Responding back with RC support to determine how to update a user's 10 digit DID
+
+10:32 AM 10/14/2021
+1on1 with Jesper:
+	Make up extra time by coming late or leaving early
+	11 am meeting with jfog for quicksight
+	Explore end goal of my tasks, what is the deliverable, my manager wants more info about what the task is and delivarale. 
+	What are the exact expectations for ringcentral task
+	December/january endgoal to get this done by the latest. 
+	Schedule SA exam
+
+11:59 AM 10/14/2021
+RC deliverable for API:
+	Confirm functionality
+	What values go in to calls
+
+3:47 PM 10/14/2021
+CCoE Standup:
+	Met with CPR team to review what came from the RC support session last night
+	Internal api endpoints will need to be exposed to complete our requirements 
+	Met with jfog to go over how the ops report is created 
+	Created list of platforms that will need to be accessed programatically to automate new dashboard
+	Been reaching out to people all day to get the access required, outlining requirements etc
+	Scheduled demo this evening with CPR to review currenet progress
+
+	
+6:09 PM 10/14/2021
+completed demo for RC CPR effort
+
+1:53 PM 10/15/2021
+Creating Lambda function for ingesting and converting data for dashboard
+Got access to CloudHealth API, working on queries now
+Working on access to ServiceNow data through domo with Nancy
+Working with Jason markowitz for access to security data he exports
+Getting service account to Prisma from Hamza
+
+3:57 PM 10/15/2021
+Link from jordan:
+https://gitlab.rhgcs.com/ccoe/ccoe-ami-recomend-reports
+
+11:05 AM 10/18/2021
+User reported that ARC is prompting to request access.
+User was asked to close and reopen ARC, issue persisted.
+The snowaccesscheckazfunc project was cloned and started.
+Debugging the SnowProfileMethods class determined that the user's title had been changed.
+The old logic looked for the manager it ops title, but ATI org change provided a new title.
+The SelectFromMultipleAssignmentGroups method was updated to find the T2+T3 manager job codes from the environment variables.
+Code changes were deployed to Azure in the ECS-CheckArcAccess function app.
+The same function app Configuration was updated to include the two application settings:
+"T2ManagerJobCode": "JC03836"
+"T3ManagerJobCode": "JC03835"
+User confirmed that the issue was resolved.
+Code changes commited to snowaccesscheckazfunc project
+
+11:06 AM 10/18/2021
+1on1 with Jesper:
+	ts arc issue resolved
+	cloudhealth API access obtained 
+	Waiting on nancy to get back to me for domo
+	jordan sent python project, getting dependencies together
+	waiting on hamza to create service account for prisma
+	need to confirm if s3 data provided by jason will work
+
+3:56 PM 10/18/2021
+CCoE Standup:
+	ARC Tool support - permission issue after user change, finished code change, documented, provided info to replacement dev
+	reviewing python script from jordan, got it running now reviewing data to see if it could work for ops dashboard
+	making progress on cloudhealth and domo api 
+	ring central meeting, gave snow dev what endpoints are needed to complete tasks that aren't waiting on support
+	waiting on nancy to provide access to domo snow datasets
+
+3:55 PM 10/20/2021
+CCoE Standup:
+	Workspace support
+	Creating IAM Roles
+	attended techtalks
+	Continued work on ops dashboard
+
+10:41 AM 10/21/2021
+1on1: 
+	SA exam scheduled 11/5 at 3 pm est
+	Split non support time between ops dashboard & exam prep
+
+3:54 PM 10/21/2021
+CCoE Standup:
+	1on1
+	resolved Prisma alerts in test account 
+	finally flattened data returned from cloudhealth to be used in quicksight
+	Building dashboard for cloudhealth data now
+
+3:37 PM 10/22/2021
+CCoE Standup:
+	Working with cfn template to deploy ec2 instance
+	scripting creation of ec2 instance
+	aws roadmap
+	Continued progress on Ops Dashboard
+
+10:40 AM 10/25/2021
+rh-aws-master sdk access to read cost data
+check in with debbie or ken for access to this account
+
+read cloudhealth data
+read aws cost data
+read security data - follow up with wes
+Overlord data comes from cloudwatch logs?
+
+3:54 PM 10/25/2021
+CCoE Standup:
+	Ops Dashboard - got prisma service account, servicenow service account, reading cost eplorer data via sdk
+	Workspace support
+	IAM role support
+	Let SS know their automation is broke for adding users to groups used for AWS Roles
+	Putting together API queiries for snow records
+
+3:20 PM 10/27/2021
+CCoE Standup:
+	Continued Work on Ops Dashboard
+	Training session with replacement dev in old role
+	
+
+9:59 AM 10/28/2021
+1on1:
+	JIRA API?
+	Ken would have authentication
+	Ops Dashboard in progress
+	Appgate class to take over appgate support
+	Lot of manual work for creating appgate entitlements, room for automation
+	Visual tool for finding networking resources 
+	Create Instance Profile from JFog to trust relationship into master account - programmatic access - 
+
+
+3:56 PM 10/28/2021
+CCoE Standup:
+	Continued work on Ops Dashboard - finished CW portion, 
+	1on1 with jesper
+	ARC Tool support
+	working on getting access to prisma
+
+3:50 PM 10/29/2021
+CCoE Standup:
+	Ops Dashboard
+	Build all servicenow queries to retireve same data from aipd dashboard
+	still working on getting access to prisma
+	Workspace support 
+	
+10:59 AM 11/1/2021
+1on1 with Jesper:
+	Exam on Friday
+	Continuing work on ops dashboard
+	Cloudgate monitoring are the dynatrace emails for console uptime
+	Teams channel
+	Scheduled maintenance for Workspaces
+	
+1:46 PM 11/1/2021
+ADFS-ITEMEA-BOAT-Admin stackset deployed to the following accounts:
+itemea-ici-dev 538894926196
+itemea-ici-uat 096052233710
+itemea-timecapture-dev 281985834789
+itemea-timecapture-prod 233518277894
+itemea-timecapture-uat 870933782614
+itemea-timewatch-prod 484226988910
+Confirmed group contained users in request. 
+
+1:47 PM 11/1/2021
+Proccess for new iam role requests (EXists already):
+	Check to see if role exists
+	If exists in rhcloudaccount, find stackset in prod account
+	Redeploy stackset to accounts listed in snow request 
+	confirm successful deploy
+	Update request with accounts deployed to and close
+	
+3:44 PM 11/1/2021
+CCoE Standup:
+	Ops Dashboard
+	IAM role deployed, started working on toolset for automation
+	ARC Tool support request came in but forwarded to new dev
+
+5:21 PM 11/1/2021
+Proccess for new iam role requests (Doesn't EXist):
+	rh-iamroles git repo>
+	determine if folder for account exists, create if no
+	create json file using name of new role
+	copy template that matches the permission level provided
+	update specific template values for new role
+	Create another json file in rhcloudgate foler in same repo, same file name
+	Copy template used for assuming role, update values to point to new role 
+	Deploy stack using template in rhcloudgate account
+	Create stackset in rh-ssvcs-prd account, use new role template, deploy to account provided in req
+	Confirm deploy was successfull, update + close task
+	rh-iamroles git repo> Create branch using role name - commit changes - push to remote - merge request
+	
+9:19 AM 11/2/2021
+New role created in both rhcloudgate folder and mcc-prd-mediaservices 775939669219 folder. Read only permissions. Stackset created in rh-ssvcs-prd account and deployed to provided account. stack deployed to rhcloudgate account. 
+https://gitlab.rhgcs.com/jamfog02/rh-iamroles/-/merge_requests/42
+
+
+11:55 AM 11/2/2021
+Workspace issue reported by candidate. Started, then rebooted workspace ws-8fbqx85ry INC1663032. Issue resolved. 
+
+4:01 PM 11/3/2021
+CCoE standup: 
+	Workspace support, scheduled maintenance emails to all users
+	Iam role creation
+	Still blocked from ring central api endpoints from support, was just updated form support that they are stil working on this
+	Cramming for sa exam 
+
+10:16 AM 11/4/2021
+1on1:
+	Jesper out next week
+	Waiting on jesper for Delete workspace approval and access to rh-master account
+	Can follow up with Alfresco S3 CRR issue next week
+
+3:41 PM 11/4/2021
+CCoE Standup:
+	1on1 with jesper
+	Ops Dashboard progress 
+	Waiting on approval from business side to delete list of workspaces that came up in audit
+	Deleted sfcc duplicate cloudtrails
+
+3:47 PM 11/8/2021
+CCoE Standup: 
+	Ring central support provided endpoint for re-assigning phone number to different extension, trying to get it to work, keep getting 404s
+	CPR sprint check in meeting, need to review requirements to make sure support provides what we need
+	recovering from exam cramming
+
+12:09 PM 11/9/2021
+Confirmed that endpoint from RC support is not working. Sent email to RC Support outlining what requests were sent with what responses. Also found patch method is missing from the python SDK but is present in the developer documentation. 
+
+Worked with Sridhar to get authentication workflow working in SNow form. Sandbox authenticated, working on prod now. 
+
+3:57 PM 11/10/2021
+CCoE Standup: 
+	Worked with Sridhar to get create user and create extension endpoints working from servicenow
+	Scheduled support meeting with ringcentral tomorrow
+	Found useful info from the v2 endpoint provided from support, but using get instead of patch
+	Ops Dashboard progress 
+
+2:52 PM 11/11/2021
+TASK1032129 New IAM Role: APP-AWS-EADS-EA-ADFS-EADSEA
+
+3:58 PM 11/11/2021
+CCoE Standup:
+	Ops Dashboard
+	New iam role creation, continuing automation creation
+	RC API meeting with support today
+
+4:00 PM 11/15/2021
+CCoE Standup:
+	RC Task finished
+	Workspace support
+	Automated new iam role automation 
+
+3:52 PM 11/18/2021
+CCoE Standup:
+	1on1 with jesper
+	cpr sprint check in
+	new list of objectives to complete with rc api
+	training with replacement arc dev
+
+3:40 PM 11/19/2021
+CCoE Standup:
+	Resolved issue with no role, user was not added to the group. 
+	Working on new set of rest api endpoint requirements from cpr project
+	helped sridhar with scripting deletion of users
+
+3:59 PM 11/22/2021
+CCoE Standup:
+	CPR Sprint check in
+	making progress on part 2 of rc api endpoints
+	workspace support
+
+2:27 PM 11/24/2021
+CCoE Standup:
+	Workspace provisioning support
+	Finished RC API exploration
+	Wrote api documentation with examples for each endpoint, updated the jira
+	Workspace sign in support
+
+4:01 PM 11/29/2021
+CCoE Standup: 
+	CPR check in, provided completed work to hand off to sridhar
+	Continued progress on creating lambda function for ops report
+	Ran into issue assuming role with dotnet tool, going to work around
+	Identified issues with role names in servicenow automation, going to have to work with ea team to fix forms
+	once form issue is resolved, iam role automation can be called as a lambda
+
+9:58 AM 11/30/2021
+Workspace support all morning so far. 
+
+3:55 PM 12/1/2021
+CCoE Standup: 
+	Workspace Support
+	CPR Sprint Checkin 
+	ARC tool support, new dev deployed bug, noc reached out since new dev wasn't in yet
+	Continuing progress on OpsDashboard
+	Working around dotnet deployment errors with jenkins pipline
+	Networking issue on test ec2 instance
+
+3:57 PM 12/1/2021
+Troubleshooting test instance in itaipd-jrftst
+Can SSH into instance, no internet access from there. 
+Security group allows traffic, subnet 0.0.0.0/0 routed to ENI of NAT instance, 
+previously worked before redeployed using cloudformation template, 
+NACL on subnet set to allow all traffic, did not make any changes to NAT instance, 
+instance and NAT in same VPC
+
+Account: itaipd-jrftst
+Instance: i-00d65eada02dad44d
+
+3:31 PM 12/2/2021
+CCoE Standup:
+	1on1 with jesper
+	Updating cfn and jenkins file for opsreport
+	ATI all hands
+	troubleshooting lambda used for snow process to freese devices in absolute
+	chef training with Archana
+
+7:19 PM 12/2/2021
+Worked with William, re-wrote lambda function to remote his debugging loops that broke the lambda.
+Commented out his changes and replaced with verbose exception handling and logging of api responses 
+deployed changes in eads-ea-nonprod aws account
+
+11:05 AM 12/6/2021
+recorded planview 
+
+4:00 PM 12/8/2021
+CCoE Standup:
+	Working on python lambda_pylogger
+
+3:17 PM 12/8/2021
+starting call with gunnar for arc support
+
+4:00 PM 12/8/2021
+CCoE Standup:
+	Working on python lambda_pylogger
+	met with sandra d. for workspaces delete request backlog item she found assigned to din
+	spent time with gunnar going over arc stuff
+	Researching jenkins suggestions made by neil for opsreport pipeline
+
+10:13 AM 12/9/2021
+lambda_pylogger demo meeting no longer than 30 minutes
+set technical goal for 2022 with pylogger
+step 1, schedule meeting, review process 
+OpsReport Meeting in january, after the 9th - Priority pages sent by jesper to implement. 
+
+4:00 PM 12/9/2021
+CCoE Standup:
+	1on1 with jesper
+	cloudwatch log data extractor
+	accidentally made a cloudwatch archiver instead of extractor
+	Working through solutions for extracting logs, running into state issues with log streams
+	Possible solution would be a opensearch cluster that cloudwatch streams directly to
+	continuing progress on ops dashboard
+
+3:13 PM 12/13/2021
+Creating pyOpsReport
+
+3:55 PM 12/13/2021
+Resolved issue with Aliceserver, my password reset expired the credentials on nocserv that were saved to access the corpshare.
+Updating my password resolved the issue. 
+Notified jeremy and let him know that aliceserver should be retired. 
+
+3:56 PM 12/13/2021
+CCoE Standup: 
+	Migrating logic written in C# to python to create lambda for opsreport
+	Resolved ARC outage, aliceserver now running on the PLS-PC-NOCSERV
+
+3:53 PM 12/15/2021
+CCoE Standup: 
+	Workspace Support
+	Networking Support
+	Continuing progress on ops report lambda
+
+11:46 AM 12/16/2021
+Worked with Gunnar to show the AliceServer yesterday 30 minutes
+Send email to jesper outlining arc noc outage
+Is tom piper working on this? to make alerts
+Who owns big panda, eis, noc?
+
+4:02 PM 12/16/2021
+CCoE Standup: 
+	lambda_pylogger work
+	ARC Noc tool support
+	OpsReport code progress
+	Trying to create a python package, 
+
+4:02 PM 12/27/2021
+CCoE Standup:
+	catching up after being out last week
+	Following up with eads absolute integration into service now with lambda function, reviewing logs
+	more progress on ops report, working on prisma authentication in python 
+
+3:59 PM 12/28/2021
+CCoE Standup: 
+	Workday self eval
+	workday paperwork
+	privacy and security training
+	authenticated with prisma cloud, building out api calls for alerts, comparing api to console to powerpoint
+	Working with sridhar again on absolute integration in service now. Confirmed from api gateway the lambda is working, curl commands sent, asking him to simplify current servicenow setup
+	cloudwatch is painful, really looking forward to building out a logging solution
+
+3:56 PM 12/29/2021
+CCoE Standup: 
+	Workspace support 
+	Continued progress on python code for prisma, blocked by access issue, waiting on hamza
+	Added AWS support tickets to ORDG
+	Rewrote the absolute integration lambda used by servicenow, so far so good
+
+10:56 AM 12/30/2021
+1on1:
+	Where does 12 month cloudhealth savings come from
+	Jira API Access
+	Absolute lambda confirmation with wes, commands showing in console instantly
+	Cloudhealth - total cost, total savings, top 10 spending areas 
+	AWS Cost calculator for logging solution: SQS + opensearch | get cost from api? 
+	Outline pylogger logging solution for next 1on1
+
+4:01 PM 12/30/2021
+CCoE Standup: 
+	Continued support for ea team for absolute integration, working for security and gcs
+	1on1 with jesper
+	Adding cloudhealth data to ops report data generator 
+	Outlining telemetry project - lambda inventory 
+
+1:16 PM 1/4/2022
+CCoE Standup: 
+	Working on ORDG
+	Following up with William Zamora to review what Sridhar is doing wrong with absolute lambda call in ServiceNow
+
+7:15 PM 1/4/2022
+8am - 6:30pm
+
+3:09 PM 1/5/2022
+Updated absolute snow lambda with more logging, Created git repo, commited changes, added readme. Confirmed requests made from servicenow are working and showing events in absolute. 
+
+Was provided cloudhealth report showing savings across aws. The report was saved as a custom report to get an id, then a python script written to read data and convert into a time series graphable data type. 
+
+Started creating the infrastructure for HalfGraph: OpenSearch Cluster, SQS Queue, Lambda function, IAM role, and lambda trigger all created. Have to update the lambda to take queue message and place into opensearch, then delete message on success. 
+
+4:02 PM 1/5/2022
+CCoE Standup:
+	OpsReport progress
+	ea team support for snow lambda^
+	Creating resources in test account for logger
+	Followed up with hamza for prisma access, still waiting
+	Added cloudhealth data to opsreport, created new s3 manifest file to read s3 from quicksight
+
+5:56 PM 1/5/2022
+Created opsreport csv file and uploaded to s3, created manifest file, created dataset in quicksight. Started making visual
+
+7:27 PM 1/5/2022
+8am - 6:30pm
+
+10:00 AM 1/6/2022
+1on1:
+	iam_ad_group_automation
+		Meet with new person
+		Outline snow requirements with jonathan, work with snow to get it done
+		Get gauge of where she is at
+		Send victor email about snow request
+	ops_report_data_generator
+		Code complete, working still working on pipeline
+	HalfGraph
+		10,000 foot view - central lambda log repository
+	iteads-servicenow-absolute-call
+		Confirmed functionality, done
+	lambda_pylogger
+		Meet with Jordan to create package
+	Kyle Walp - helping other teams with AWS stuff
+		If he keeps reaching out with aws question let jesper know
+	Kshitiz Sharma - Create instances 
+		Find financial info for them 
+
+3:18 PM 1/6/2022
+CCoE Standup Notes:
+	See below:
+
+1 on 1 with jesper
+Backed up personal powershell profile to gitlab
+investigated protiviti financials in rh-corp-workspaces, results are in the hundreds 
+continuing progress on opsreport pipeline, creating jenkins file and cfn
+Created dataset in quicksight for ops report generated data
+Resolved issue with ea team servicenow absolute integration - lambda function now working correctly. Organized code and put into repo sharing with ea dev
+Working on creating python library for working with opensearch
+Updated iam_ad_group_automation into its own repository and continued work on documentation. Outling requirements to have snow team update the request 
+Ran some analysis lambda functions across the rh org. -Top 4 Support contacts responsible for more than all others combined (848)
+	stuart.chapman@roberthalf.com 461 (Functions that ran in 2021)
+	Get-OrgLamdaRunTimesBySupportEmail -email "stuart.chapman@roberthalf.com" -is2021 $true
+        Name      Count
+        ----      -----
+        java8         5
+        python2.7     5
+        python3.8    22
+        java8.al2    28
+        python3.7    42
+        python3.6   359
+
+3:54 PM 1/6/2022
+Cleaned CCoE Notebook in onenote of old notes, and consolidated relevant information.
+
+4:13 PM 1/6/2022
+RH Nexus can store pip packages 
+nexus.rhgcs.com
+git sub modules 
+Search integration into overlord 
+vs code git diff 
+
+https://python-poetry.org/
+Poetry - Python dependency management and packaging made easy
+Python dependency management and packaging made easy
+https://pipenv.pypa.io/en/latest/
+Pipenv: Python Dev Workflow for Humans — pipenv 2021.11.23 documentation
+y-engine
+candidate and client info goes to z-engine 
+java etl is the opposite of extensible 
+ied innovation, engineering, d...
+team brainstorm sessions 
+metropages
+Search-AwsAccountAlias metro
+Search-AwsAccountAlias ied
+
+6:55 PM 1/6/2022
+8 am - 6 pm
+
+3:39 PM 1/7/2022
+CCoE Standup:
+	Created iam role manual creation documentation 
+	Neil made my nexus account, showed me how to use with python packages
+	Creating python environment with wsl al2, nexus artifact repo
+	Met with Mitali for aws iam role creation overview - requested gitlab for her
+	Continued progress with iam role automation - servicenow integration 
+	
+10:41 PM 1/7/2022
+recording time
+
+3:52 PM 1/10/2022
+CCoE Standup:
+	Finished wsl al2 environment, bashing bashing into brain, creating documentation on all the required configs
+	Successfully created first python package and uploaded to nexus. Next step will be creating documentation and scripts to repeat the process faster
+	Created cfn for ops report, finishing up jenkins pipeline now
+	
+4:00 PM 1/12/2022
+CCoE Standup:
+	OpsReport visualizations
+	ITEIS-Readonly iam role deletion python script
+	Troubleshooting some jenkin pipeline issues that I found
+	Teams channel
+	
+8:01 PM 1/12/2022
+Monday 9 - 7
+Tuesday 9 - 630
+Wednesday 8 - 630
+
+10:03 AM 1/13/2022
+1on1:
+	Ops report jenkins pipeline troubleshooting
+	Jfog task yesterday, delete IAM
+	Teams channel notifications
+	2022 the year of aws house cleaning
+	Absctract python lambda cloudformation
+		Gitlab API, Jenkins API - Jonathan
+	Career development next steps - What do I want to do?
+
+3:57 PM 1/13/2022
+CCoE Standup:
+	Jenkin pipeline issue - Completely rewrote pipeline and resolved the issue
+	1on1 with jesper 
+	Workspace Support
+
+7:53 PM 1/13/2022
+9 - 7
+
+2:06 PM 1/14/2022
+Entered time
+
+2:22 PM 1/14/2022
+CCoE Standup:
+	OpsReport progress
+	lambda_pybuilder - creating python project to create new python projects
+	Blocked by jenkins issue - 403 response for create job
+
+4:29 PM 1/14/2022
+Block was determined to be due to AWS WAF. A new rule will have to be made to allow the correct requests to come through. 
+
+1:02 PM 1/15/2022
+3 hours
+4 hours monday
+
+7:08 PM 1/18/2022
+8:30 - 7:00
+
+3:52 PM 1/19/2022
+CCoE Standup:
+	Resolved build issue with ops report - help from neil
+		Package step made a change to param file, preventing update from internal git pull
+		Setting workspace to clean before checkout, resolved the issue
+	Attended jonathan's presentation
+	Added secret manager to ops report for secret automation 
+	Updated stack and confirmed functional in jenkins pipeline
+	Built lambda builder for a lambda framework 
+
+3:54 PM 1/20/2022
+CCoE Standup:
+	Resolved permissions issue accessing secrets manager
+	Creating visuals with working data
+	Updating data generator with new values
+	Chef training part 2 with Archana
+	Workspace support
+
+3:46 PM 1/21/2022
+	Ops Report lambda
+	Lambda framework
+	pylogger
+
+10:18 AM 1/24/2022
+recording time
+
+11:30 AM 1/24/2022
+Following aws quicksight documentation for creating calculated fields resulted in "something went wrong" - working with aws support to find and resolve the issue
+
+4:00 PM 1/24/2022
+CCoE Standup: 
+	quicksight visuals
+	aws support: calculated fields only visible in tables, not visuals
+	finishing python script that reads servicenow requests to create iam roles
+	starting ui project for lambda orchestration framework
+
+8:15 PM 1/24/2022
+10-6:30
+
+1:22 PM 1/25/2022
+Workspace Support, IAM Role Creation
+Create report for candidate workspaces to provide to Candidate Audit Review
+
+3:42 PM 1/25/2022
+iam role user not added to ad group. created incident to have user added to group.
+
+6:44 PM 1/25/2022
+Worked with sharon to get chef environment running, ran into same error she got stuck on. 
+
+6:58 PM 1/25/2022
+8 am - 7 pm
+
+1:06 PM 1/26/2022
+7am start
+attended workspace Salesforce Integration - AWS Workspace Recovery meeting. Created jira for next sprint to cleaup unused workspaces from list provided by utsav 73 > 5
+rh-corp-workspaces will need to be checked for unused workspaces. 167 workspaces deployed
+Attended technical update
+Wrote out servicenow portion of updating and closing out snow task from role request.
+Working on deployment confirmation portion 
+
+4:00 PM 1/26/2022
+CCoE Standup:
+	attended workspace Salesforce Integration - AWS Workspace Recovery meeting. Created jira for next sprint to cleaup unused workspaces from list provided by utsav 73 > 5
+	rh-corp-workspaces will need to be checked for unused workspaces. 167 workspaces deployed
+	Attended technical update
+	Wrote out servicenow portion of updating and closing out snow task from role request.
+	Working on deployment confirmation portion 
+	Troubleshooting deployed templates 
+7am > 6pm
+
+9:47 AM 1/27/2022
+Goals: 
+Lead project - Head a project as the main devops contact
+	Prove capabilties as a mid level devops engineer
+
+Develop Omega - Create a platform/tool that provides value to the company 
+	Create workflow to streamline lambda integrations in ServiceNow
+	Something that could be presented to allow more teams to adopt devops workflows
+
+Familiarize with ML/DL - Open opportunity to provide devops functionality to IDE team
+
+Establish a streamlined communications channel to improve remote work environment
+
+3:55 PM 1/27/2022
+CCoE Standup:
+	IAM Automation python script
+	1on1 with jesper
+	Workspace support
+	jfog helped resolve new role access issue, updated cfns
+	starting process for getting azure ad side of iam workflow automated
+	
+6:49 PM 1/27/2022
+8am > 6pm
+
+3:38 PM 1/28/2022
+CCoE Standup:
+	Workspace support
+	IAM automation script progress
+	
+4:37 PM 1/31/2022
+CTO - Entering time
+
+9:08 AM 2/1/2022
+spoke with payroll, they asked me to send missing time values via email. 
+
+9:21 AM 2/1/2022
+completed planview 
+
+3:43 PM 2/2/2022
+CCoE Standup:
+	Workspace support
+	IAM automation
+	Met with Hilda Chee for possible quicksight implemantation, recoommended not to go with it
+	Helping Rajesh with cloudgate utility issue, cannot switch roles 
+
+8:39 AM 2/3/2022
+started today, 8:30, same yesterday 
+
+9:33 AM 2/3/2022
+Worked with Kwesi to get him signed into the aws console and rebooted the candidate's workspace.
+Creating delete commands for rh-workspace inactives, have to determine a method for determining rh-corp-workspace inactives
+Waiting on systems operate to resolve rajesh's issue, add app to azure ad group 
+
+10:00 AM 2/3/2022
+1on1:
+	reliaquest external vendor, pull logs from windows systems, waf, vpc flowlogs, etc. 
+	lee greenburg is contact at security, 
+	jordan's flow log project? could probably leverage what was done here
+	Windows system log forwarding does not exist today, need to send all logs to reliaquest
+
+3:51 PM 2/3/2022
+CCoE Standup:
+	helped tech support get signed into aws console to support candidate workspaces
+	working on creating inactive ws report for corp workspaces
+	1on1 with jesper
+	Created task for ss to fix azure ad group for rajesh's rhcloudgate utility issue
+	workspace support, creating lots of corp workspaces
+	working session with Sandra troubleshooting the iam snow request process, delete iam portion of cloud account request 
+	more workspace support, looking at creating some new bundles
+
+5:21 PM 2/3/2022
+ended 5 pm
+
+3:17 PM 2/4/2022
+CCoE Standup:
+	Workspace support
+	Workspace cleanup progress
+	outlining requirements for new workspace bundles used by corp
+	putting snow requests together for updating iam requests 
+	loan officer had wrong email
+
+1:19 PM 2/7/2022
+time
+
+3:58 PM 2/7/2022
+CCoE Standup:
+	Finishing up Workspace deletes, all but 1 workspace inactive ready to delete
+	Ken got me authenticated with api, working now
+
+5:39 PM 2/8/2022
+Worked on finishing iam automation
+More workspace support
+created iam users for snow ticket
+
+My workspace doesn't work, still waiting on hearing back from rh remote workforce to see what is suppoed to be done with azure vd vs worksapces 
+
+3:26 PM 2/9/2022
+CCoE Standup: 
+	Workspace support
+	Still determining state of candidate workspaces, NA confirmed azure, waiting on IZ
+	Looking into issue with IAM roles created for ITEMEA, 4 roles deployed to 13 different accounts
+	Working with justin yuu later today to outline azure side of iam role automation 
+
+11:17 AM 2/10/2022
+started 10:30
+
+3:50 PM 2/10/2022
+CCoE Standup: 
+	Manually creating IAM resources while working on fixing automation
+	Call with Nancy regarding domo dashboards
+	Still waiting to hear back from gcs about IZ workspaces
+	Fixing project template bugs found when deploying iam-role-automation, jenkins, cloudformation, etc
+
+8:29 AM 2/14/2022
+time - started 8:00 am
+
+3:53 PM 2/14/2022
+CCoE Standup: 
+	Investigating aws ad group request issue, following up with victor
+	Workspace support - candidate workspace cleanup and corp workspace upgrades 
+	Helped with arc tool outage caused by changes to servicenow
+
+3:55 PM 2/16/2022
+CCoE Standup:
+	Reviewing ITPASS Docs, Code, Infrastrucure, and workflow.
+	Watching recorded meetings from debi & dave larson
+	
+10:08 AM 2/17/2022
+1on1:
+	AWS AD Group request addrole blocked by snow team
+	ITPASS workflow review:
+		Which teams are responsible for creating these files? 
+		How does staging tables work from the API?
+		Automate current process then work at fixing everything
+		Get sample files, confirm simple automation
+
+3:28 PM 2/17/2022
+CCoE Standup:
+	1on1
+	ITPASS
+
+8:47 AM 2/23/2022
+Started at 8, doing time
+
+3:52 PM 2/23/2022
+CCoE Standup:
+	Catching up after being out
+	Workspace support
+	Reviewing itpass documentation from last week
+	
+9:59 AM 2/24/2022
+1on1:
+	ITPASS
+	Alex Sisco Email
+	Closing today at 2pm
+
+8:16 PM 2/24/2022
+8 - 8, 12 hours today 
+
+8:13 AM 2/25/2022
+started at 8
+
+3:59 PM 2/25/2022
+CCoE Standup:
+	Absolute freeze/unfreeze servicenow integration resolution
+	ITPASS investigation and interegations
+	Settled on new house
+
+12:03 PM 2/28/2022
+time
+
+3:55 PM 2/28/2022
+CCoE Standup:
+	ITPASS Discovery
+	Material review for quicksight meeting
+	Actual quicksight meeting with followup call note documentation
+	Workspace support
+
+3:30 PM 3/2/2022
+Created new role with custom permissions
+Workspace support
+Helped walk someone through appgate entitlement request 
+
+3:59 PM 3/2/2022
+CCoE Standup:
+	Created new role with custom permissions
+	Workspace support
+	Helped walk someone through appgate entitlement request 
+	ITPASS review
+
+3:22 PM 3/3/2022
+CCoE Standup:
+	1on1 with jesper
+	internet outage thanks to verizon
+	Refactoring itpass python lambda scripts
+
+3:59 PM 3/4/2022
+CCoE Standup:
+	Absolute API overview
+	Prep for prod migration
+
+12:27 PM 3/7/2022
+Time, resolved issue with kalabe's appgate 
+
+3:38 PM 3/7/2022
+CCoE Standup:
+	Appgate support, found user had vm setup as his second device, help from jeff
+	finishing up iam automation, finding what is left to complete
+	updating documentation for other projects
+	
+3:57 PM 3/8/2022
+Resolved issue with iam-role-automation pipeline, single quotes was preventing epochtime variable from correctly being injected into template file name
+
+3:31 PM 3/9/2022
+glint survey
+
+3:32 PM 3/9/2022
+CCoE Standup:
+	finishing iam-role-automation
+	troubleshooting workspace delete lambda
+	completed glint survey
+	
+4:00 PM 3/10/2022
+CCoE Standup:
+	Updating documentation
+	fixing workspace cleanup code
+	Followed up with ken on possible delete workspace lambda issue
+
+4:00 PM 3/11/2022
+CCoE Standup:
+	fixed jenkins pipeline for iam automation
+	IAM automation documentation update
+	reviewed iam role creation process with sharon
+	Getting powershell cmdlets together to be shared 
+
+12:56 PM 3/14/2022
+time
+
+
 9:01 AM 3/29/2022
 GP Standup: 
 	SumoLogic support ticket for connecting with thirdparty platforms ie sendgrid
