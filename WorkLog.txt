@@ -1,0 +1,29 @@
+.LOG
+9:01 AM 3/29/2022
+GP Standup: 
+	SumoLogic support ticket for connecting with thirdparty platforms ie sendgrid
+	Continuing setting up local environment
+	Digging into sumologic helm configuration options to change current default settings
+
+9:09 AM 3/29/2022
+Get into Mimecast - release sendgrid access email - read sendgrid docs for sending data
+
+9:12 AM 3/29/2022
+From orientation, numbers seemed low for clinical recruitment, are there global companies focusing on clinical recruitment that could be partnered with to provide finaicial services? - jim murphy
+
+9:22 AM 3/29/2022
+Add myself to itsgdev01 k8s cluster via host_vars through ansible
+
+2:41 PM 3/29/2022
+Support ticket created for sumologic sendgrid integration. 
+
+8:53 AM 3/30/2022
+GP Standup:
+	Submitted sumologic ticket after reviewing docs - 6702
+	Continuing local env setup
+	Revewied helm config for sumo deployment, only itsgclustr01 flux folder has sumo under release folder
+
+clusters with sumologic:
+	ccsqa
+	ecgpsdev
+	itsgclustr01 - found release in flux folder
